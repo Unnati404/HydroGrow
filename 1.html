@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>HydroGrow Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- MQTT, jsPDF, Chart.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    /* Light, Modern Theme */
+    body {
+      font-family: 'Inter', sans-serif;
+      background: linear-gradient(to right, #f0fdf4, #ecfeff); /* Subtle green-blue gradient */
+      margin: 0; 
+      padding: 0;
+      color: #1f2937; /* Gray-800 from Tailwind */
+    }
+
+    /* Top Navigation / Branding */
+    .top-nav {
+      background: #ffffffee; /* Slightly transparent white */
+      backdrop-filter: blur(6px);
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 2rem;
+    }
+    .brand-title {
+      font-size: 1.8rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: #047857; /* Tailwind Emerald-700 */
+    }
+    .brand-title img {
+      height: 40px;
+      width: 40px;
+    }
+
+    /* Card */
+    .sensor-card {
+      background: #ffffff;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      border-radius: 0.75rem;
+      padding: 1rem;
+      text-align: center;
+      transition: transform 0.3s ease;
+    }
+    .sensor-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+    }
+    .sensor-title {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: #2563eb; /* Tailwind Blue-600 */
+    }
+    .sensor-value {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-top: 0.5rem;
+      color: #1f2937; /* Gray-800 */
+    }
+    .sensor-optimal {
+      font-size: 0.9rem;
+      color: #6b7280; /* Gray-500 */
+      margin-top: 0.3rem;
+    }
+
+    /* Charts */
+    .chart-container {
+      background: #ffffff;
+      border-radius: 0.75rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      padding: 1rem;
+      margin-bottom: 1rem;
+      transition: transform 0.3s ease;
+    }
+    .chart-container:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+    }
+    .chart-title {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: #047857; /* Emerald-700 */
+    }
+
+    /* Button */
+    .pdf-btn {
+      background: linear-gradient(to right, #06b6d4, #10b981);
+      color: #fff;
+      padding: 0.75rem 1.5rem;
+      font-weight: 600;
+      border-radius: 0.5rem;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      box-shadow: 0 4px 14px rgba(6,182,212,0.4);
+    }
+    .pdf-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(6,182,212,0.4);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation / Branding -->
+  <nav class="top-nav">
+    <div class="brand-title">
+      <img src="https://img.icons8.com/fluency/48/plant-under-rain.png" alt="HydroGrow Logo" />
+      HydroGrow
+    </div>
+    <div></div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="container mx-auto px-4 py-8">
+    <!-- Dashboard Title -->
+    <h1 class="text-3xl font-bold text-gray-700 text-center mb-10">Hydroponic Monitoring Dashboard</h1>
+
+    <!-- Sensor Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <!-- pH Card -->
+      <div class="sensor-card">
+        <div class="sensor-title">pH Level</div>
+        <div id="phValue" class="sensor-value">--</div>
+        <div class="sensor-optimal">Optimal: 5.5 - 6.5</div>
+      </div>
+      <!-- EC Card -->
+      <div class="sensor-card">
+        <div class="sensor-title">EC (Electrical Conductivity)</div>
+        <div id="ecValue" class="sensor-value">--</div>
+        <div class="sensor-optimal">Optimal: 1.2 - 2.5 dS/m</div>
+      </div>
+      <!-- Water Level Card -->
+      <div class="sensor-card">
+        <div class="sensor-title">Water Level</div>
+        <div id="waterLevel" class="sensor-value">--</div>
+        <div class="sensor-optimal">Low Alert at &lt; 20%</div>
+      </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- pH Chart -->
+      <div class="chart-container">
+        <div class="chart-title">pH Sensor Trend</div>
+        <canvas id="phChart" width="400" height="300"></canvas>
+      </div>
+      <!-- EC Chart -->
+      <div class="chart-container">
+        <div class="chart-title">EC Sensor Trend</div>
+        <canvas id="ecChart" width="400" height="300"></canvas>
+      </div>
+      <!-- Water Level Chart -->
+      <div class="chart-container">
+        <div class="chart-title">Water Level Trend</div>
+        <canvas id="waterChart" width="400" height="300"></canvas>
+      </div>
+    </div>
+
+    <!-- PDF Report Button -->
+    <div class="mt-8 flex justify-center">
+      <button onclick="generatePDF()" class="pdf-btn">📄 Download PDF Report</button>
+    </div>
+  </div>
+
+  <!-- MQTT + Charts + PDF Script -->
+  <script>
+    // -------------------- MQTT Setup --------------------
+    const client = mqtt.connect('wss://test.mosquitto.org:8081');
+
+    // We'll store up to 10 (time, value) pairs for each sensor
+    let phHistory = [];
+    let ecHistory = [];
+    let waterHistory = [];
+
+    // Current sensor values
+    let currentPh = "--";
+    let currentEc = "--";
+    let currentWater = "--";
+
+    client.on("connect", () => {
+      console.log("Connected to MQTT Broker!");
+      client.subscribe("hydroponic/ph");
+      client.subscribe("hydroponic/ec");
+      client.subscribe("hydroponic/waterlevel");
+    });
+
+    client.on("message", (topic, message) => {
+      let val = parseFloat(message.toString());
+      const timeLabel = new Date().toLocaleTimeString();
+
+      if (topic === "hydroponic/ph") {
+        currentPh = message.toString(); // string version for display
+        document.getElementById("phValue").innerText = currentPh;
+        
+        // Push record (time, value)
+        phHistory.push({ t: timeLabel, v: val });
+        if (phHistory.length > 10) phHistory.shift(); // keep length <= 10
+        updatePhChart();
+      }
+
+      if (topic === "hydroponic/ec") {
+        currentEc = message.toString();
+        document.getElementById("ecValue").innerText = currentEc;
+        
+        ecHistory.push({ t: timeLabel, v: val });
+        if (ecHistory.length > 10) ecHistory.shift();
+        updateEcChart();
+      }
+
+      if (topic === "hydroponic/waterlevel") {
+        currentWater = val.toString() + "%";
+        document.getElementById("waterLevel").innerText = currentWater;
+        
+        waterHistory.push({ t: timeLabel, v: val });
+        if (waterHistory.length > 10) waterHistory.shift();
+        updateWaterChart();
+      }
+    });
+
+    // -------------------- Chart.js Setup --------------------
+    let phChart, ecChart, waterChart;
+
+    function initPhChart() {
+      const ctxPh = document.getElementById('phChart').getContext('2d');
+      phChart = new Chart(ctxPh, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [{
+            label: 'pH Level',
+            data: [],
+            borderColor: '#2563eb',
+            backgroundColor: 'rgba(37,99,235,0.1)',
+            fill: true,
+            tension: 0.3
+          }]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+      });
+    }
+    function initEcChart() {
+      const ctxEc = document.getElementById('ecChart').getContext('2d');
+      ecChart = new Chart(ctxEc, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [{
+            label: 'EC Value',
+            data: [],
+            borderColor: '#047857',
+            backgroundColor: 'rgba(4,120,87,0.1)',
+            fill: true,
+            tension: 0.3
+          }]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+      });
+    }
+    function initWaterChart() {
+      const ctxWater = document.getElementById('waterChart').getContext('2d');
+      waterChart = new Chart(ctxWater, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [{
+            label: 'Water Level (%)',
+            data: [],
+            borderColor: '#d97706',
+            backgroundColor: 'rgba(217,119,6,0.1)',
+            fill: true,
+            tension: 0.3
+          }]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+      });
+    }
+
+    // Update chart data with latest history
+    function updatePhChart() {
+      phChart.data.labels = phHistory.map(item => item.t);
+      phChart.data.datasets[0].data = phHistory.map(item => item.v);
+      phChart.update();
+    }
+    function updateEcChart() {
+      ecChart.data.labels = ecHistory.map(item => item.t);
+      ecChart.data.datasets[0].data = ecHistory.map(item => item.v);
+      ecChart.update();
+    }
+    function updateWaterChart() {
+      waterChart.data.labels = waterHistory.map(item => item.t);
+      waterChart.data.datasets[0].data = waterHistory.map(item => item.v);
+      waterChart.update();
+    }
+
+    // Initialize Charts on page load
+    window.onload = function() {
+      initPhChart();
+      initEcChart();
+      initWaterChart();
+    };
+
+    // -------------------- Generate PDF (No Graphs) --------------------
+    function generatePDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(18);
+      doc.text("HydroGrow Sensor Report", 20, 20);
+
+      doc.setFontSize(12);
+      doc.text("Report Generated on: " + new Date().toLocaleString(), 20, 30);
+
+      // pH Values Section
+      doc.setFontSize(14);
+      doc.text("pH Sensor Readings:", 20, 45);
+      doc.setFontSize(11);
+      let yPos = 55;
+      phHistory.forEach((item, index) => {
+        doc.text(`${index+1}. [${item.t}]  pH = ${item.v.toFixed(2)}`, 20, yPos);
+        yPos += 7;
+      });
+
+      // EC Values Section
+      yPos += 10;
+      doc.setFontSize(14);
+      doc.text("EC Sensor Readings:", 20, yPos);
+      doc.setFontSize(11);
+      yPos += 10;
+      ecHistory.forEach((item, index) => {
+        doc.text(`${index+1}. [${item.t}]  EC = ${item.v.toFixed(2)}`, 20, yPos);
+        yPos += 7;
+      });
+
+      // Water Level Values Section
+      yPos += 10;
+      doc.setFontSize(14);
+      doc.text("Water Level Readings:", 20, yPos);
+      doc.setFontSize(11);
+      yPos += 10;
+      waterHistory.forEach((item, index) => {
+        doc.text(`${index+1}. [${item.t}]  Water = ${item.v.toFixed(2)}%`, 20, yPos);
+        yPos += 7;
+      });
+
+      doc.save("HydroGrow_Report.pdf");
+    }
+  </script>
+</body>
+</html>
