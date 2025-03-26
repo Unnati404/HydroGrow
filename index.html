@@ -15,15 +15,14 @@
     /* Light, Modern Theme */
     body {
       font-family: 'Inter', sans-serif;
-      background: linear-gradient(to right, #f0fdf4, #ecfeff); /* Subtle green-blue gradient */
+      background: linear-gradient(to right, #f0fdf4, #ecfeff);
       margin: 0; 
       padding: 0;
       color: #1f2937; /* Gray-800 from Tailwind */
     }
 
-    /* Top Navigation / Branding */
     .top-nav {
-      background: #ffffffee; /* Slightly transparent white */
+      background: #ffffffee;
       backdrop-filter: blur(6px);
       box-shadow: 0 2px 5px rgba(0,0,0,0.1);
       display: flex;
@@ -37,14 +36,14 @@
       display: flex;
       align-items: center;
       gap: 0.5rem;
-      color: #047857; /* Tailwind Emerald-700 */
+      color: #047857; /* Emerald-700 */
     }
     .brand-title img {
       height: 40px;
       width: 40px;
     }
 
-    /* Card */
+    /* Sensor Card */
     .sensor-card {
       background: #ffffff;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
@@ -60,17 +59,17 @@
     .sensor-title {
       font-size: 1.2rem;
       font-weight: 600;
-      color: #2563eb; /* Tailwind Blue-600 */
+      color: #2563eb; /* Blue-600 */
     }
     .sensor-value {
       font-size: 2rem;
       font-weight: 700;
       margin-top: 0.5rem;
-      color: #1f2937; /* Gray-800 */
+      color: #1f2937;
     }
     .sensor-optimal {
       font-size: 0.9rem;
-      color: #6b7280; /* Gray-500 */
+      color: #6b7280;
       margin-top: 0.3rem;
     }
 
@@ -94,7 +93,7 @@
       color: #047857; /* Emerald-700 */
     }
 
-    /* Button */
+    /* Buttons */
     .pdf-btn {
       background: linear-gradient(to right, #06b6d4, #10b981);
       color: #fff;
@@ -111,14 +110,27 @@
   </style>
 </head>
 <body>
-
   <!-- Top Navigation / Branding -->
   <nav class="top-nav">
     <div class="brand-title">
       <img src="https://img.icons8.com/fluency/48/plant-under-rain.png" alt="HydroGrow Logo" />
       HydroGrow
     </div>
-    <div></div>
+
+    <!-- Stylish Toggle Switch for Water Pump -->
+    <div class="flex items-center gap-3">
+      <span class="text-gray-700 font-semibold">Pump OFF</span>
+      <label class="relative inline-flex items-center cursor-pointer">
+        <!-- Hidden checkbox to represent the toggle -->
+        <input type="checkbox" id="pumpToggle" class="sr-only peer" />
+        <!-- The track -->
+        <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-emerald-300 dark:bg-gray-300 peer-checked:bg-emerald-600 
+                    peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] 
+                    after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 
+                    after:border after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+      </label>
+      <span class="text-gray-700 font-semibold">Pump ON</span>
+    </div>
   </nav>
 
   <!-- Main Content -->
@@ -128,19 +140,19 @@
 
     <!-- Sensor Cards -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-      <!-- pH Card -->
+      <!-- pH Card (Random Values) -->
       <div class="sensor-card">
         <div class="sensor-title">pH Level</div>
         <div id="phValue" class="sensor-value">--</div>
         <div class="sensor-optimal">Optimal: 5.5 - 6.5</div>
       </div>
-      <!-- EC Card -->
+      <!-- EC Card (From ESP32 MQTT) -->
       <div class="sensor-card">
         <div class="sensor-title">EC (Electrical Conductivity)</div>
         <div id="ecValue" class="sensor-value">--</div>
         <div class="sensor-optimal">Optimal: 1.2 - 2.5 dS/m</div>
       </div>
-      <!-- Water Level Card -->
+      <!-- Water Level Card (From ESP32 MQTT) -->
       <div class="sensor-card">
         <div class="sensor-title">Water Level</div>
         <div id="waterLevel" class="sensor-value">--</div>
@@ -150,7 +162,7 @@
 
     <!-- Charts Section -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- pH Chart -->
+      <!-- pH Chart (Random) -->
       <div class="chart-container">
         <div class="chart-title">pH Sensor Trend</div>
         <canvas id="phChart" width="400" height="300"></canvas>
@@ -175,8 +187,20 @@
 
   <!-- MQTT + Charts + PDF Script -->
   <script>
-    // -------------------- MQTT Setup --------------------
-    const client = mqtt.connect('wss://test.mosquitto.org:8081');
+    // --------------------------------------------------
+    // 1) MQTT Setup 
+    //    Replace the 'wss://3.230.164.113:8083' with the correct
+    //    WebSocket endpoint for your actual MQTT broker.
+    //    Provide the username/password as needed.
+    // --------------------------------------------------
+    const options = {
+      username: "IEMA@2024",
+      password: "Pass@IEMA2024"
+    };
+
+    // Example WebSocket URL (you must confirm your broker's WS port):
+    // wss://3.230.164.113:8083
+    const client = mqtt.connect("wss://3.230.164.113:8083", options);
 
     // We'll store up to 10 (time, value) pairs for each sensor
     let phHistory = [];
@@ -188,9 +212,30 @@
     let currentEc = "--";
     let currentWater = "--";
 
+    // --------------------------------------------------
+    // 2) Random pH Values (Instead of subscribing to pH)
+    //    We'll generate random pH every 20 seconds.
+    // --------------------------------------------------
+    setInterval(() => {
+      // Random pH between 4.0 and 8.0
+      const randomPh = (4 + Math.random() * 4).toFixed(2);
+      const timeLabel = new Date().toLocaleTimeString();
+
+      currentPh = randomPh;
+      document.getElementById("phValue").innerText = currentPh;
+
+      // Keep history for chart
+      phHistory.push({ t: timeLabel, v: parseFloat(randomPh) });
+      if (phHistory.length > 10) phHistory.shift();
+
+      updatePhChart();
+    }, 20000); // 20 seconds
+
+    // --------------------------------------------------
+    // 3) Subscribe to Real EC / Water Level from ESP32
+    // --------------------------------------------------
     client.on("connect", () => {
       console.log("Connected to MQTT Broker!");
-      client.subscribe("hydroponic/ph");
       client.subscribe("hydroponic/ec");
       client.subscribe("hydroponic/waterlevel");
     });
@@ -199,20 +244,10 @@
       let val = parseFloat(message.toString());
       const timeLabel = new Date().toLocaleTimeString();
 
-      if (topic === "hydroponic/ph") {
-        currentPh = message.toString(); // string version for display
-        document.getElementById("phValue").innerText = currentPh;
-        
-        // Push record (time, value)
-        phHistory.push({ t: timeLabel, v: val });
-        if (phHistory.length > 10) phHistory.shift(); // keep length <= 10
-        updatePhChart();
-      }
-
       if (topic === "hydroponic/ec") {
-        currentEc = message.toString();
+        currentEc = message.toString(); // string version for display
         document.getElementById("ecValue").innerText = currentEc;
-        
+
         ecHistory.push({ t: timeLabel, v: val });
         if (ecHistory.length > 10) ecHistory.shift();
         updateEcChart();
@@ -221,14 +256,31 @@
       if (topic === "hydroponic/waterlevel") {
         currentWater = val.toString() + "%";
         document.getElementById("waterLevel").innerText = currentWater;
-        
+
         waterHistory.push({ t: timeLabel, v: val });
         if (waterHistory.length > 10) waterHistory.shift();
         updateWaterChart();
       }
     });
 
-    // -------------------- Chart.js Setup --------------------
+    // --------------------------------------------------
+    // 4) Pump Control (Toggle Switch -> Publish ON/OFF)
+    //    Publish "ON" or "OFF" to "hydroponic/status"
+    // --------------------------------------------------
+    const pumpToggle = document.getElementById("pumpToggle");
+    pumpToggle.addEventListener("change", function(e) {
+      if (e.target.checked) {
+        client.publish("hydroponic/status", "ON");
+        console.log("Published 'ON' to hydroponic/status");
+      } else {
+        client.publish("hydroponic/status", "OFF");
+        console.log("Published 'OFF' to hydroponic/status");
+      }
+    });
+
+    // --------------------------------------------------
+    // 5) Initialize Charts (Chart.js)
+    // --------------------------------------------------
     let phChart, ecChart, waterChart;
 
     function initPhChart() {
@@ -249,6 +301,7 @@
         options: { responsive: true, scales: { y: { beginAtZero: true } } }
       });
     }
+
     function initEcChart() {
       const ctxEc = document.getElementById('ecChart').getContext('2d');
       ecChart = new Chart(ctxEc, {
@@ -267,6 +320,7 @@
         options: { responsive: true, scales: { y: { beginAtZero: true } } }
       });
     }
+
     function initWaterChart() {
       const ctxWater = document.getElementById('waterChart').getContext('2d');
       waterChart = new Chart(ctxWater, {
@@ -310,7 +364,9 @@
       initWaterChart();
     };
 
-    // -------------------- Generate PDF (No Graphs) --------------------
+    // --------------------------------------------------
+    // 6) Generate PDF (No Graphs)
+    // --------------------------------------------------
     function generatePDF() {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
@@ -322,9 +378,9 @@
       doc.setFontSize(12);
       doc.text("Report Generated on: " + new Date().toLocaleString(), 20, 30);
 
-      // pH Values Section
+      // pH Values Section (Random)
       doc.setFontSize(14);
-      doc.text("pH Sensor Readings:", 20, 45);
+      doc.text("pH Sensor Readings (Random):", 20, 45);
       doc.setFontSize(11);
       let yPos = 55;
       phHistory.forEach((item, index) => {
